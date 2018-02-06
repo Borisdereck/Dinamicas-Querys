@@ -1,0 +1,219 @@
+CREATE OR REPLACE FUNCTION "opav"."sl_apoteosys_migracion_oc_selectrik"("oc_" varchar)
+  RETURNS "pg_catalog"."varchar" AS $BODY$
+DECLARE
+
+ _resultado 		character varying 	:='ok';
+ _ocs 			record;
+ _proveedor		record;	
+ _val_parametrizados	record; 
+ _contador 		numeric 		:=0;
+ _temp_cod_sum 		character varying 	:='';
+ _temp_cod_ocs 		character varying 	:='';
+ _existe 		character varying 	:='';
+ 
+ 
+BEGIN
+
+	/*====SE VERIFICA SI LA OC YA EXISTE EN LA TABLA DE SL_APOTEOSYS_TABLA_MAESTRA=====*/
+	select INTO _existe coalesce((select 'SI'::VARCHAR from opav.SL_APOTEOSYS_TABLA_MAESTRA where ord_orden_interna = oc_),'NO');
+
+	IF(_existe = 'NO' )THEN
+		
+		FOR _ocs IN
+			
+			SELECT 
+				OC.cod_ocs,  OC.fecha_actual , OC.cod_proveedor ,  1 as id_insumo , 'MATERIAL'::character varying AS nombre_insumo , round(SUM(costo_total_compra),2) as ORD_SUBTOTAL ,COALESCE(OFE.centro_costos_gastos,'') as CCA
+			FROM 		opav.sl_orden_compra_servicio 		AS OC
+			INNER JOIN 	opav.sl_ocs_detalle			AS OCD 		ON (OC.id		=	OCD.id_ocs)
+			INNER JOIN	opav.sl_solicitud_ocs			AS SOCS		ON (OCD.cod_solicitud 	=	SOCS.cod_solicitud)
+			left JOIN	opav.ofertas				AS OFE		ON (SOCS.id_solicitud  	=	OFE.id_solicitud)
+			where OC.COD_OCS = oc_
+			group by OC.cod_ocs, OC.cod_proveedor , OC.fecha_actual , OFE.centro_costos_gastos
+			order by OC.cod_ocs, OC.cod_proveedor
+
+			
+		LOOP
+ 	
+
+				select 
+						(CASE 
+						WHEN tipo_doc ='CED' THEN 'CC'
+						WHEN tipo_doc ='RIF' THEN 'CE'
+						WHEN tipo_doc ='NIT' THEN 'NIT' ELSE
+						'CC' END) 								as tercer_codigo____tit____b,
+
+						(D.NOMBRE1||' '||D.NOMBRE2) 						AS tercer_nombcort__b, 
+						 D.NOMBRE 								AS tercer_nombexte__b,
+						(D.APELLIDO1||' '||D.APELLIDO2) 					AS tercer_apellidos_b, 
+						
+						(CASE 
+						WHEN GRAN_CONTRIBUYENTE ='N' AND AGENTE_RETENEDOR ='N' THEN 'RCOM' 
+						WHEN GRAN_CONTRIBUYENTE ='N' AND AGENTE_RETENEDOR ='S' THEN 'RCAU' 
+						WHEN GRAN_CONTRIBUYENTE ='S' AND AGENTE_RETENEDOR ='N' THEN 'GCON' 
+						WHEN GRAN_CONTRIBUYENTE ='S' AND AGENTE_RETENEDOR ='S' THEN 'GCAU'
+						ELSE 'PNAL' END) 							as tercer_codigo____tt_____b,
+						D.direccion								AS tercer_direccion_b,
+						'08001'::character varying						AS tercer_codigo____ciudad_b ,
+						D.telefono								AS tercer_telefono1_b,
+						
+						1 									AS tercer_tipogiro__b,
+						0									AS tercer_sucursal__b into _proveedor
+						from proveedor prov
+						LEFT JOIN NIT D ON(D.CEDULA=prov.NIT)
+						LEFT JOIN CIUDAD E ON(E.CODCIU=D.CODCIU)
+						where nit = _ocs.cod_proveedor;
+
+				
+			
+			
+			RAISE NOTICE '_ocs :% ',_ocs ;
+			RAISE NOTICE '_proveedor :% ',_proveedor ;
+
+			IF(_temp_cod_ocs =  _ocs.cod_ocs) THEN
+				_contador := _contador+1;
+			ELSE
+				_contador:=1;
+			END IF;
+			_temp_cod_ocs  :=  _ocs.cod_ocs;
+			
+			_temp_cod_sum:=(select CASE 
+						WHEN 	_ocs.id_insumo=1 THEN 'MT0001' 
+						WHEN 	_ocs.id_insumo=2 THEN 'EQ0001' 
+						WHEN 	_ocs.id_insumo=3 THEN 'MO0001' 
+						WHEN 	_ocs.id_insumo=4 THEN 'HR0001' 
+					    ELSE 'MT0001'
+					END);
+			
+		
+			INSERT INTO OPAV.SL_APOTEOSYS_TABLA_MAESTRA (
+					--OC Cabecera
+					ORD_ORDEN_INTERNA, ORD_FECHA, ORD_PRO_PROVEEDOR, 
+					ORD_SUBTOTAL, ORD_PCT_DESCUENTO_GLOBAL, ORD_DESCUENTO, ORD_OTRO_IMPUESTO, ORD_IVA, 
+					ORD_TOTAL, ORD_FECHA_AUTORIZACION,  
+					ORD_DEP_DEPARTAMENTO, 
+					ORD_ANT_INCLUYEIVA,  ORD_INDEJEPRE, ORD_INDCARINI,  ORD_VALOTASA, ORD_REPARABLE, 
+					ORD_PERCAMEST, ID_SL_APOTEOSYS_FASE_OC,
+
+					--OC Detalle 
+					DOR_LINEA, DOR_SUM_SUMINISTRO, 
+					DOR_DESCRIPCION, DOR_DESCRIPCION_ALTERNA, DOR_CANTIDAD_PEDIDA, 
+					DOR_CANTIDAD_BACKORDER, DOR_COSTO_FOB, 
+					DOR_TOTAL_LINEA, DOR_MED_MEDIDA_CANTIDAD_MEDIDA, 
+					DOR_DEP_DEPARTAMENTO,
+
+					--Despacho Cabecera
+					DPC_DEP_DEPARTAMENTO,
+
+					--Despacho Detalle
+					DDF_LINEA, DDF_DOR_LINEA, 
+					DDF_CANTIDAD,  DDF_CANTIDAD_BACKORDER,   
+					DDF_DEP_DEPARTAMENTO,
+
+					--Proveedor
+					TERCER_CODIGO____TIT____B,
+					TERCER_NOMBCORT__B,
+					TERCER_NOMBEXTE__B,
+					TERCER_APELLIDOS_B,
+					TERCER_CODIGO____TT_____B,
+					TERCER_DIRECCION_B,
+					TERCER_CODIGO____CIUDAD_B,
+					TERCER_TELEFONO1_B,
+					TERCER_TIPOGIRO__B,
+					TERCER_SUCURSAL__B	) 
+
+			VALUES (
+					--OC Cabecera
+					_ocs.cod_ocs, _ocs.fecha_actual, _ocs.cod_proveedor, 
+					0,'0', '0', '0', '0', --_ocs.ord_subtotal
+					0, _ocs.fecha_actual,--_ocs.ord_subtotal
+					_ocs.cca, 
+					'N', 'S', 'N', '0', 'N', 
+					'N' , 1,
+					
+					--OC Detalle 
+					_contador, _temp_cod_sum, 
+					_ocs.nombre_insumo, _ocs.nombre_insumo, '1',
+					'1', _ocs.ord_subtotal,
+					_ocs.ord_subtotal, 'UND', 
+					_ocs.cca,
+
+					--Despacho Cabecera
+					_ocs.cca,
+
+					--Despacho Detalle
+					_contador, _contador,
+					'1',  '1',   
+					_ocs.cca,
+
+					--proveedor
+					_proveedor.TERCER_CODIGO____TIT____B,
+					_proveedor.TERCER_NOMBCORT__B,
+					SUBSTR(_proveedor.TERCER_NOMBEXTE__B,1,64),
+					_proveedor.TERCER_APELLIDOS_B,
+					_proveedor.TERCER_CODIGO____TT_____B,
+					_proveedor.TERCER_DIRECCION_B,
+					_proveedor.TERCER_CODIGO____CIUDAD_B,
+					_proveedor.TERCER_TELEFONO1_B,
+					_proveedor.TERCER_TIPOGIRO__B,
+					_proveedor.TERCER_SUCURSAL__B
+					);
+
+
+
+
+		END LOOP;
+
+ 		update opav.sl_apoteosys_tabla_maestra set 
+			
+			ORD_AUTORIZADO 			= (select opav.sl_get_campo_apoteosys(1 , 'ORD_AUTORIZADO')),
+			ORD_CAT_CATEGORIA 		= (select opav.sl_get_campo_apoteosys(1 , 'ORD_CAT_CATEGORIA')),
+			ORD_CPA_CONDICION		= (select opav.sl_get_campo_apoteosys(1 , 'ORD_CPA_CONDICION')),
+			ORD_CPA_CONDICION2 		= (select opav.sl_get_campo_apoteosys(1 , 'ORD_CPA_CONDICION2')),
+			ORD_DOC_DOCUMENTO 		= (select opav.sl_get_campo_apoteosys(1 , 'ORD_DOC_DOCUMENTO')),
+			ORD_PRO_MON_MONEDA		= (select opav.sl_get_campo_apoteosys(1 , 'ORD_PRO_MON_MONEDA')),
+			ORD_STATUS 			= (select opav.sl_get_campo_apoteosys(1 , 'ORD_STATUS')),
+			ORD_TIPO 			= (select opav.sl_get_campo_apoteosys(1 , 'ORD_TIPO')),
+			ORD_TIPO_ORDEN 			= (select opav.sl_get_campo_apoteosys(1 , 'ORD_TIPO_ORDEN')),
+			ORD_CMP_COMPRADOR 		= (select opav.sl_get_campo_apoteosys(1 , 'ORD_CMP_COMPRADOR')),
+			ORD_CREADO_POR 			= (select opav.sl_get_campo_apoteosys(1 , 'ORD_CREADO_POR')),
+
+			--valores por defecto OC Detalle 'COM_DETALLE_ORDEN_TB_NX'
+			DOR_ORD_EMP_EMPRESA		= (select opav.sl_get_campo_apoteosys(2 , 'DOR_ORD_EMP_EMPRESA')), 
+			DOR_CANTIDAD_RECIBIDA 		= (select opav.sl_get_campo_apoteosys(2 , 'DOR_CANTIDAD_RECIBIDA'))::numeric,
+			DOR_STATUS 			= (select opav.sl_get_campo_apoteosys(2 , 'DOR_STATUS')),
+			DOR_SUM_EMP_EMPRESA 		= (select opav.sl_get_campo_apoteosys(2 , 'DOR_SUM_EMP_EMPRESA')),
+			ORD_EMP_EMPRESA 		= (select opav.sl_get_campo_apoteosys(2 , 'ORD_EMP_EMPRESA')),
+
+			--valores por defecto 'COM_DESPACHO_TB_NX'
+			DOR_DEP_EMP_EMPRESA 		= (select opav.sl_get_campo_apoteosys(3 , 'DOR_DEP_EMP_EMPRESA')),
+			DPC_EMP_EMPRESA_DESPACHO 	= (select opav.sl_get_campo_apoteosys(3 , 'DPC_EMP_EMPRESA_DESPACHO')),
+			DPC_LCG_LOCALIZACION 		= (select opav.sl_get_campo_apoteosys(3 , 'DPC_LCG_LOCALIZACION')),
+			DPC_ORD_EMP_EMPRESA 		= (select opav.sl_get_campo_apoteosys(3 , 'DPC_ORD_EMP_EMPRESA')),
+			DPC_CREADO_POR 			= (select opav.sl_get_campo_apoteosys(3 , 'DPC_CREADO_POR')),
+
+			--valores por defecto 'COM_DET_DESPACHO_TB_NX'
+			DDF_CANCELADO 			= (select opav.sl_get_campo_apoteosys(4 , 'DDF_CANCELADO')),
+			DDF_DEP_EMP_EMPRESA 		= (select opav.sl_get_campo_apoteosys(4 , 'DDF_DEP_EMP_EMPRESA')),
+			DDF_CREADO_POR 			= (select opav.sl_get_campo_apoteosys(4 , 'DDF_CREADO_POR')),
+			DDF_DOR_ORD_EMP_EMPRESA 	= (select opav.sl_get_campo_apoteosys(4 , 'DDF_DOR_ORD_EMP_EMPRESA'))
+
+		WHERE ID_SL_APOTEOSYS_FASE_OC = 1;
+
+
+ 
+		update opav.sl_apoteosys_tabla_maestra as a set 
+			ord_subtotal = b.total , 
+			ORD_IVA = b.total*0.19  ,
+			ord_total = b.total*1.19 , 
+			DOR_IMPUESTO_VENTA_MONTO = b.total*0.19 , 
+			DOR_TOTAL_LINEA =b.total*1.19
+			
+		from (select  ord_orden_interna  , sum(dor_total_linea) as total from opav.sl_apoteosys_tabla_maestra group by ord_orden_interna ) as b
+		where a.ord_orden_interna = b.ord_orden_interna;
+		
+	END IF;
+	
+ RETURN _resultado;
+END;
+$BODY$
+  LANGUAGE plpgsql VOLATILE
