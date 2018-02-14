@@ -57,12 +57,12 @@ BEGIN
 		WHERE 
 			TIPO_DOCUMENTO		=	'FAP' 
 			AND HANDLE_CODE		=	'CI' 
-			AND PERIODO		=	'201711'
+			AND PERIODO		=	'201712'
 			AND A.REG_STATUS	=	''
 			AND C.CENTRO_COSTOS_INGRESO !=  ''
 			AND DOCUMENTO 		LIKE 	'CC%'
 			--AND COALESCE(PROCESADO, 'N' ) = 'N'
-
+-- SELECT con.interfaz_sl_contratista_cc_selectrik_apoteosys()
 		
 	LOOP
 
@@ -282,9 +282,3 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ALTER FUNCTION con.interfaz_sl_contratista_cc_selectrik_apoteosys()
   OWNER TO postgres;
-
-select con.interfaz_sl_contratista_cc_selectrik_apoteosys();
-
---TRUNCATE TABLE CON.MC_SL_FAC_CC_SEL;
-
-SELECT tercer_nombexte__b,COUNT(0) FROM  CON.MC_SL_FAC_CC_SEL WHERE PROCESADO='N' GROUP BY tercer_nombexte__b ;
