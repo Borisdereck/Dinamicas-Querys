@@ -1,0 +1,16 @@
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:apt="http://apt.fintra.com/">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <apt:loadApoteosys>
+         <!--Optional:-->
+         <user>COREFINTRA</user>
+         <!--Optional:-->
+         <password>1</password>
+         <!--Optional:-->
+         <periodo_ano>2017</periodo_ano>
+         <periodo_mes>1</periodo_mes>
+         <!--Optional:-->
+         <operacion>CXP_CONTRATISTA_FINT</operacion>
+      </apt:loadApoteosys>
+   </soapenv:Body>
+</soapenv:Envelope>
