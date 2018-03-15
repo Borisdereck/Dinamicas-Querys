@@ -1,4 +1,6 @@
-﻿SELECT * FROM opav.acciones where id_solicitud = '922634'
+﻿--Consultar Documentos procesados en apoteosys
+
+SELECT * FROM opav.acciones where id_solicitud = '922634'
 
 
 --Paso 3

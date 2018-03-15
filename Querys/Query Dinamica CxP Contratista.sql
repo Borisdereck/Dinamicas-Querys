@@ -10,7 +10,3 @@ SELECT * FROM opav.acciones where id_accion = '9038989'
 SELECT * FROM opav.acciones where id_solicitud = '923475'
 
 
--- pedir esta cuenta '28151014' para saber como debe ir en apoteosys
-
-
-
